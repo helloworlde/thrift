@@ -28,32 +28,39 @@ import org.apache.thrift.transport.TTransport;
  * about. Your subclass can also store local data that you may care about,
  * such as additional "arguments" to these methods (stored in the object
  * instance's state).
+ * <p>
+ * Server 端事件处理器接口
  */
 public interface TServerEventHandler {
 
-  /**
-   * Called before the server begins.
-   */
-  void preServe();
+    /**
+     * Called before the server begins.
+     * 在 Server 开始调用之前调用
+     */
+    void preServe();
 
-  /**
-   * Called when a new client has connected and is about to being processing.
-   */
-  ServerContext createContext(TProtocol input,
-                              TProtocol output);
+    /**
+     * Called when a new client has connected and is about to being processing.
+     * 当有新的客户端连接，并将要处理时调用
+     */
+    ServerContext createContext(TProtocol input,
+                                TProtocol output);
 
-  /**
-   * Called when a client has finished request-handling to delete server
-   * context.
-   */
-  void deleteContext(ServerContext serverContext,
-                             TProtocol input,
-                             TProtocol output);
+    /**
+     * Called when a client has finished request-handling to delete server
+     * context.
+     * 当客户端请求处理完成，删除 Server 端 Context
+     */
+    void deleteContext(ServerContext serverContext,
+                       TProtocol input,
+                       TProtocol output);
 
-  /**
-   * Called when a client is about to call the processor.
-   */
-  void processContext(ServerContext serverContext,
-                              TTransport inputTransport, TTransport outputTransport);
+    /**
+     * Called when a client is about to call the processor.
+     * 当客户端开始调用处理器时使用
+     */
+    void processContext(ServerContext serverContext,
+                        TTransport inputTransport,
+                        TTransport outputTransport);
 
 }

@@ -19,13 +19,14 @@
 
 package org.apache.thrift.protocol;
 
-import java.io.Serializable;
-
 import org.apache.thrift.transport.TTransport;
+
+import java.io.Serializable;
 
 /**
  * Factory interface for constructing protocol instances.
+ * 根据 Transport 的协议构建协议实例
  */
 public interface TProtocolFactory extends Serializable {
-  public TProtocol getProtocol(TTransport trans);
+    public TProtocol getProtocol(TTransport trans);
 }

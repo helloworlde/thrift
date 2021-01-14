@@ -29,87 +29,105 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Simple singlethreaded server for testing.
- *
+ * 用于测试的简单的单线程 Server
  */
 public class TSimpleServer extends TServer {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(TSimpleServer.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(TSimpleServer.class.getName());
 
-  public TSimpleServer(AbstractServerArgs args) {
-    super(args);
-  }
-
-  public void serve() {
-    try {
-      serverTransport_.listen();
-    } catch (TTransportException ttx) {
-      LOGGER.error("Error occurred during listening.", ttx);
-      return;
+    public TSimpleServer(AbstractServerArgs args) {
+        super(args);
     }
 
-    // Run the preServe event
-    if (eventHandler_ != null) {
-      eventHandler_.preServe();
-    }
+    /**
+     * 启动并开始提供服务
+     */
+    public void serve() {
+        try {
+            // 监听 Socket
+            serverTransport_.listen();
+        } catch (TTransportException ttx) {
+            LOGGER.error("Error occurred during listening.", ttx);
+            return;
+        }
 
-    setServing(true);
+        // Run the preServe event
+        // 如果有事件处理器，则调用其 preSever 方法
+        if (eventHandler_ != null) {
+            eventHandler_.preServe();
+        }
 
-    while (!stopped_) {
-      TTransport client = null;
-      TProcessor processor = null;
-      TTransport inputTransport = null;
-      TTransport outputTransport = null;
-      TProtocol inputProtocol = null;
-      TProtocol outputProtocol = null;
-      ServerContext connectionContext = null;
-      try {
-        client = serverTransport_.accept();
-        if (client != null) {
-          processor = processorFactory_.getProcessor(client);
-          inputTransport = inputTransportFactory_.getTransport(client);
-          outputTransport = outputTransportFactory_.getTransport(client);
-          inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
-          outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
-          if (eventHandler_ != null) {
-            connectionContext = eventHandler_.createContext(inputProtocol, outputProtocol);
-          }
-          while (true) {
-            if (eventHandler_ != null) {
-              eventHandler_.processContext(connectionContext, inputTransport, outputTransport);
+        // 设置运行状态
+        setServing(true);
+
+        // 只要没有关闭，就获取连接
+        while (!stopped_) {
+            TTransport client = null;
+            TProcessor processor = null;
+            TTransport inputTransport = null;
+            TTransport outputTransport = null;
+            TProtocol inputProtocol = null;
+            TProtocol outputProtocol = null;
+            ServerContext connectionContext = null;
+            try {
+                // 接受连接
+                client = serverTransport_.accept();
+                if (client != null) {
+                    // 初始化相关的资源
+                    processor = processorFactory_.getProcessor(client);
+                    inputTransport = inputTransportFactory_.getTransport(client);
+                    outputTransport = outputTransportFactory_.getTransport(client);
+                    inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
+                    outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
+                    // 如果有事件监听器，则触发创建上下文事件
+                    if (eventHandler_ != null) {
+                        connectionContext = eventHandler_.createContext(inputProtocol, outputProtocol);
+                    }
+                    while (true) {
+                        // 处理上下文事件
+                        if (eventHandler_ != null) {
+                            eventHandler_.processContext(connectionContext, inputTransport, outputTransport);
+                        }
+                        // 处理请求
+                        processor.process(inputProtocol, outputProtocol);
+                    }
+                }
+            } catch (TTransportException ttx) {
+                // Client died, just move on
+            } catch (TException tx) {
+                if (!stopped_) {
+                    LOGGER.error("Thrift error occurred during processing of message.", tx);
+                }
+            } catch (Exception x) {
+                if (!stopped_) {
+                    LOGGER.error("Error occurred during processing of message.", x);
+                }
             }
-            processor.process(inputProtocol, outputProtocol);
-          }
+
+            // 上下文删除事件
+            if (eventHandler_ != null) {
+                eventHandler_.deleteContext(connectionContext, inputProtocol, outputProtocol);
+            }
+
+            // 关闭 Transport
+            if (inputTransport != null) {
+                inputTransport.close();
+            }
+
+            if (outputTransport != null) {
+                outputTransport.close();
+            }
+
         }
-      } catch (TTransportException ttx) {
-        // Client died, just move on
-      } catch (TException tx) {
-        if (!stopped_) {
-          LOGGER.error("Thrift error occurred during processing of message.", tx);
-        }
-      } catch (Exception x) {
-        if (!stopped_) {
-          LOGGER.error("Error occurred during processing of message.", x);
-        }
-      }
-
-      if (eventHandler_ != null) {
-        eventHandler_.deleteContext(connectionContext, inputProtocol, outputProtocol);
-      }
-
-      if (inputTransport != null) {
-        inputTransport.close();
-      }
-
-      if (outputTransport != null) {
-        outputTransport.close();
-      }
-
+        // 修改服务状态
+        setServing(false);
     }
-    setServing(false);
-  }
 
-  public void stop() {
-    stopped_ = true;
-    serverTransport_.interrupt();
-  }
+    /**
+     * 停止服务，打断 Transport
+     */
+    public void stop() {
+        stopped_ = true;
+        serverTransport_.interrupt();
+    }
 }

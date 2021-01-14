@@ -19,16 +19,16 @@
 
 package org.apache.thrift.protocol;
 
-import java.nio.ByteBuffer;
-
 import org.apache.thrift.TException;
 import org.apache.thrift.scheme.IScheme;
 import org.apache.thrift.scheme.StandardScheme;
 import org.apache.thrift.transport.TTransport;
 
+import java.nio.ByteBuffer;
+
 /**
  * Protocol interface definition.
- *
+ * 协议定义接口
  */
 public abstract class TProtocol {
 
@@ -152,7 +152,7 @@ public abstract class TProtocol {
    * be implemented for stateful protocols.
    */
   public void reset() {}
-  
+
   /**
    * Scheme accessor
    */

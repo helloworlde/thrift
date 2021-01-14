@@ -19,11 +19,11 @@
 
 package org.apache.thrift.protocol;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransport;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Binary protocol implementation for thrift.
