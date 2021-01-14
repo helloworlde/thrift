@@ -20,6 +20,13 @@
 // Using the legacy plugin classpath for Clover so it can be loaded optionally
 buildscript {
     repositories {
+
+        maven {
+            url("https://maven.aliyun.com/repository/apache-snapshots")
+        }
+        maven {
+            url("https://maven.aliyun.com/repository/public")
+        }
         mavenCentral()
         google()
         jcenter()
@@ -51,6 +58,8 @@ if (Boolean.parseBoolean(project.release)) {
     version = property('thrift.version') + '-SNAPSHOT'
 }
 
+tasks.withType(Javadoc).all { enabled = false }
+
 // Keeping the rest of the build logic in functional named scripts for clarity
 apply from: 'gradle/environment.gradle'
 apply from: 'gradle/sourceConfiguration.gradle'
@@ -60,4 +69,4 @@ apply from: 'gradle/unitTests.gradle'
 apply from: 'gradle/cloverCoverage.gradle'
 apply from: 'gradle/functionalTests.gradle'
 apply from: 'gradle/publishing.gradle'
-apply from: 'gradle/codeQualityChecks.gradle'
+//apply from: 'gradle/codeQualityChecks.gradle'
