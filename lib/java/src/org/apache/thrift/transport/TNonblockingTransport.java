@@ -25,23 +25,39 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 
+/**
+ * 非阻塞的 Transport
+ */
 public abstract class TNonblockingTransport extends TTransport {
 
-  /**
-   * Non-blocking connection initialization.
-   * @see java.nio.channels.SocketChannel#connect(SocketAddress remote)
-   */
-  public abstract boolean startConnect() throws IOException;
+    /**
+     * Non-blocking connection initialization.
+     * 初始化非阻塞的连接
+     *
+     * @see java.nio.channels.SocketChannel#connect(SocketAddress remote)
+     */
+    public abstract boolean startConnect() throws IOException;
 
-  /**
-   * Non-blocking connection completion.
-   * @see java.nio.channels.SocketChannel#finishConnect()
-   */
-  public abstract boolean finishConnect() throws IOException;
+    /**
+     * Non-blocking connection completion.
+     * 非阻塞连接完成
+     *
+     * @see java.nio.channels.SocketChannel#finishConnect()
+     */
+    public abstract boolean finishConnect() throws IOException;
 
-  public abstract SelectionKey registerSelector(Selector selector, int interests) throws IOException;
+    /**
+     * 注册选择器
+     */
+    public abstract SelectionKey registerSelector(Selector selector, int interests) throws IOException;
 
-  public abstract int read(ByteBuffer buffer) throws IOException;
+    /**
+     * 读取内容到缓冲区
+     */
+    public abstract int read(ByteBuffer buffer) throws IOException;
 
-  public abstract int write(ByteBuffer buffer) throws IOException;
+    /**
+     * 将缓冲区数据输出到连接
+     */
+    public abstract int write(ByteBuffer buffer) throws IOException;
 }

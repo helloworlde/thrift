@@ -24,8 +24,12 @@ import java.nio.channels.Selector;
 
 /**
  * Server transport that can be operated in a nonblocking fashion.
+ * 可以以非阻塞的方式操作 Server Transport
  */
 public abstract class TNonblockingServerTransport extends TServerTransport {
 
-  public abstract void registerSelector(Selector selector);
+    /**
+     * 注册选择器
+     */
+    public abstract void registerSelector(Selector selector);
 }
