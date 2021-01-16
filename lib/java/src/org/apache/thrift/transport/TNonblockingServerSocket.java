@@ -110,6 +110,9 @@ public class TNonblockingServerSocket extends TNonblockingServerTransport {
         }
     }
 
+    /**
+     * 开始监听
+     */
     public void listen() throws TTransportException {
         // Make sure not to block on accept
         if (serverSocket_ != null) {

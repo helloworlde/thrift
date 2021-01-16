@@ -25,37 +25,37 @@ import java.nio.charset.Charset;
 /**
  * Class that allows access to the underlying buf without doing deep
  * copies on it.
- *
+ * 可以访问底层的缓冲区而不需要深拷贝的类
  */
 public class TByteArrayOutputStream extends ByteArrayOutputStream {
 
-  private final int initialSize;
+    private final int initialSize;
 
-  public TByteArrayOutputStream(int size) {
-    super(size);
-    this.initialSize = size;
-  }
-
-  public TByteArrayOutputStream() {
-    this(32);
-  }
-
-  public byte[] get() {
-    return buf;
-  }
-
-  public void reset() {
-    super.reset();
-    if (buf.length > initialSize) {
-      buf = new byte[initialSize];
+    public TByteArrayOutputStream(int size) {
+        super(size);
+        this.initialSize = size;
     }
-  }
 
-  public int len() {
-    return count;
-  }
+    public TByteArrayOutputStream() {
+        this(32);
+    }
 
-  public String toString(Charset charset) {
-    return new String(buf, 0, count, charset);
-  }
+    public byte[] get() {
+        return buf;
+    }
+
+    public void reset() {
+        super.reset();
+        if (buf.length > initialSize) {
+            buf = new byte[initialSize];
+        }
+    }
+
+    public int len() {
+        return count;
+    }
+
+    public String toString(Charset charset) {
+        return new String(buf, 0, count, charset);
+    }
 }

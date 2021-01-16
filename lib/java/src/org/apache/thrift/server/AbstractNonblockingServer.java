@@ -54,10 +54,14 @@ public abstract class AbstractNonblockingServer extends TServer {
      * The maximum amount of memory we will allocate to client IO buffers at a
      * time. Without this limit, the server will gladly allocate client buffers
      * right into an out of memory exception, rather than waiting.
+     * <p>
+     * 允许同时分配给客户端 IO 的最大内存，服务端更容易分配内存直到 OOM，而不是等待
      */
     final long MAX_READ_BUFFER_BYTES;
+
     /**
      * How many bytes are currently allocated to read buffers.
+     * 可以并发读取的最大缓冲大小
      */
     final AtomicLong readBufferBytesAllocated = new AtomicLong(0);
 
@@ -68,33 +72,41 @@ public abstract class AbstractNonblockingServer extends TServer {
 
     /**
      * Begin accepting connections and processing invocations.
+     * 开始接收连接，处理调用
      */
     public void serve() {
         // start any IO threads
+        // 启动
         if (!startThreads()) {
             return;
         }
 
         // start listening, or exit
+        // 开始监听
         if (!startListening()) {
             return;
         }
 
+        // 修改状态
         setServing(true);
 
         // this will block while we serve
+        // 阻塞直到关闭
         waitForShutdown();
 
         setServing(false);
 
         // do a little cleanup
+        // 停止监听器
         stopListening();
     }
 
     /**
      * Starts any threads required for serving.
+     * 启动线程提供服务
      *
      * @return true if everything went ok, false if threads could not be started.
+     * 如果正常则返回 true，如果不能启动则返回 false
      */
     protected abstract boolean startThreads();
 
@@ -106,9 +118,11 @@ public abstract class AbstractNonblockingServer extends TServer {
 
     /**
      * Have the server transport start accepting connections.
+     * Server Transport 开始监听
      *
      * @return true if we started listening successfully, false if something went
      * wrong.
+     * 如果启动监听成功则返回 true，否则返回 false
      */
     protected boolean startListening() {
         try {
@@ -122,6 +136,7 @@ public abstract class AbstractNonblockingServer extends TServer {
 
     /**
      * Stop listening for connections.
+     * 停止监听连接
      */
     protected void stopListening() {
         serverTransport_.close();
@@ -141,22 +156,30 @@ public abstract class AbstractNonblockingServer extends TServer {
 
     /**
      * Possible states for the FrameBuffer state machine.
+     * FrameBuffer 的状态机
      */
     private enum FrameBufferState {
         // in the midst of reading the frame size off the wire
+        // 在读取到帧中间时
         READING_FRAME_SIZE,
         // reading the actual frame data now, but not all the way done yet
+        // 真正读取帧数据，但是没有全部完成
         READING_FRAME,
         // completely read the frame, so an invocation can now happen
+        // 读取完帧，可以开始调用
         READ_FRAME_COMPLETE,
         // waiting to get switched to listening for write events
+        // 等待切换到监听
         AWAITING_REGISTER_WRITE,
         // started writing response data, not fully complete yet
+        // 开始写入响应数据，但没有完成
         WRITING,
         // another thread wants this framebuffer to go back to reading
+        // 另一个线程想要读取这个帧
         AWAITING_REGISTER_READ,
         // we want our transport and selection key invalidated in the selector
         // thread
+        // 等待关闭
         AWAITING_CLOSE
     }
 
@@ -173,10 +196,14 @@ public abstract class AbstractNonblockingServer extends TServer {
      * An abstract thread that handles selecting on a set of transports and
      * {@link FrameBuffer FrameBuffers} associated with selected keys
      * corresponding to requests.
+     * <p>
+     * 抽象的线程，用于处理 Transport 和相关联的 FrameBuffer 的请求
      */
     protected abstract class AbstractSelectThread extends Thread {
+
         // List of FrameBuffers that want to change their selection interests.
         protected final Set<FrameBuffer> selectInterestChanges = new HashSet<FrameBuffer>();
+
         protected Selector selector;
 
         public AbstractSelectThread() throws IOException {
@@ -185,6 +212,7 @@ public abstract class AbstractNonblockingServer extends TServer {
 
         /**
          * If the selector is blocked, wake it up.
+         * 如果线程被阻塞，则唤醒
          */
         public void wakeupSelector() {
             selector.wakeup();
@@ -194,6 +222,8 @@ public abstract class AbstractNonblockingServer extends TServer {
          * Add FrameBuffer to the list of select interest changes and wake up the
          * selector if it's blocked. When the select() call exits, it'll give the
          * FrameBuffer a chance to change its interests.
+         * 将 FrameBuffer 添加到集合中，如果阻塞则唤醒，当调用存在时，FrameBuffer 可以改变
+         * 关注的变化
          */
         public void requestSelectInterestChange(FrameBuffer frameBuffer) {
             synchronized (selectInterestChanges) {
@@ -206,6 +236,7 @@ public abstract class AbstractNonblockingServer extends TServer {
         /**
          * Check to see if there are any FrameBuffers that have switched their
          * interest type from read to write or vice versa.
+         * 检查是否有 FrameBuffer 将监听的改变从读取变为写入或者相反
          */
         protected void processInterestChanges() {
             synchronized (selectInterestChanges) {
@@ -272,30 +303,55 @@ public abstract class AbstractNonblockingServer extends TServer {
      * getting it handed off as wrapped transports, and then the writing of
      * response data back to the client. In the process it manages flipping the
      * read and write bits on the selection key for its client.
+     * <p>
+     * 实现了对客户端调用感兴趣的状态机，管理帧大小和数据的读取，交给封装后的 Transport 处理，
+     * 然后将响应数据返回给客户端，在此期间，管理数据的读取和写入
      */
     public class FrameBuffer {
         // the actual transport hooked up to the client.
+        // 真正的与客户端联系的 Transport
         protected final TNonblockingTransport trans_;
+
         // the SelectionKey that corresponds to our transport
+        // Transport 对应的 SelectionKey
         protected final SelectionKey selectionKey_;
+
         // the SelectThread that owns the registration of our transport
+        // 持有注册的 Transport 的 SelectThread
         protected final AbstractSelectThread selectThread_;
+
         protected final TByteArrayOutputStream response_;
+
         // the frame that the TTransport should wrap.
+        // Transport 应当封装的帧
         protected final TMemoryInputTransport frameTrans_;
+
         // the transport that should be used to connect to clients
+        // 应当和客户端连接的 Transport
         protected final TTransport inTrans_;
+
         protected final TTransport outTrans_;
+
         // the input protocol to use on frames
+        // 用于帧的输入的协议
         protected final TProtocol inProt_;
+
         // the output protocol to use on frames
+        // 用于帧的输出的协议
         protected final TProtocol outProt_;
+
         // context associated with this connection
+        // 连接相关的上下文
         protected final ServerContext context_;
+
         private final Logger LOGGER = LoggerFactory.getLogger(getClass().getName());
+
         // where in the process of reading/writing are we?
+        // 状态
         protected FrameBufferState state_ = FrameBufferState.READING_FRAME_SIZE;
+
         // the ByteBuffer we'll be using to write and read, depending on the state
+        // 用于写入和读取的 ByteBuffer，依赖状态
         protected ByteBuffer buffer_;
 
         public FrameBuffer(final TNonblockingTransport trans,
@@ -323,19 +379,24 @@ public abstract class AbstractNonblockingServer extends TServer {
         /**
          * Give this FrameBuffer a chance to read. The selector loop should have
          * received a read event for this FrameBuffer.
+         * 尝试 FrameBuffer 读取，Selector 循环应当会接收到这个 FramerBuffer 的读取事件
          *
          * @return true if the connection should live on, false if it should be
          * closed
+         * 如果连接存活则返回 true，如果关闭则返回 false
          */
         public boolean read() {
+            // 如果状态是读取中
             if (state_ == FrameBufferState.READING_FRAME_SIZE) {
                 // try to read the frame size completely
+                // 尝试完整的读取帧大小
                 if (!internalRead()) {
                     return false;
                 }
 
                 // if the frame size has been read completely, then prepare to read the
                 // actual frame.
+                // 如果帧大小已经完全读取，则准备读取真正的帧
                 if (buffer_.remaining() == 0) {
                     // pull out the frame size as an integer.
                     int frameSize = buffer_.getInt(0);
@@ -355,6 +416,7 @@ public abstract class AbstractNonblockingServer extends TServer {
 
                     // if this frame will push us over the memory limit, then return.
                     // with luck, more memory will free up the next time around.
+                    // 如果帧大小超过限制，则返回
                     if (readBufferBytesAllocated.get() + frameSize > MAX_READ_BUFFER_BYTES) {
                         return true;
                     }
@@ -363,6 +425,7 @@ public abstract class AbstractNonblockingServer extends TServer {
                     readBufferBytesAllocated.addAndGet(frameSize + 4);
 
                     // reallocate the readbuffer as a frame-sized buffer
+                    // 读取数据帧
                     buffer_ = ByteBuffer.allocate(frameSize + 4);
                     buffer_.putInt(frameSize);
 
@@ -378,7 +441,7 @@ public abstract class AbstractNonblockingServer extends TServer {
             // it is possible to fall through from the READING_FRAME_SIZE section
             // to READING_FRAME if there's already some frame data available once
             // READING_FRAME_SIZE is complete.
-
+            // 如果状态是读取帧，则读取
             if (state_ == FrameBufferState.READING_FRAME) {
                 if (!internalRead()) {
                     return false;
@@ -386,6 +449,7 @@ public abstract class AbstractNonblockingServer extends TServer {
 
                 // since we're already in the select loop here for sure, we can just
                 // modify our selection key directly.
+                // 如果已经督导区完成，修改状态
                 if (buffer_.remaining() == 0) {
                     // get rid of the read select interests
                     selectionKey_.interestOps(0);
@@ -431,6 +495,7 @@ public abstract class AbstractNonblockingServer extends TServer {
         /**
          * Give this FrameBuffer a chance to set its interest to write, once data
          * has come in.
+         * 一旦有新的数据，尝试将 FrameBuffer 改为写入
          */
         public void changeSelectInterests() {
             switch (state_) {
@@ -447,14 +512,13 @@ public abstract class AbstractNonblockingServer extends TServer {
                     selectionKey_.cancel();
                     break;
                 default:
-                    LOGGER.error(
-                            "changeSelectInterest was called, but state is invalid ({})",
-                            state_);
+                    LOGGER.error("changeSelectInterest was called, but state is invalid ({})", state_);
             }
         }
 
         /**
          * Shut the connection down.
+         * 关闭连接
          */
         public void close() {
             // if we're being closed due to an error, we might have allocated a
@@ -472,6 +536,7 @@ public abstract class AbstractNonblockingServer extends TServer {
 
         /**
          * Check if this FrameBuffer has a full frame read.
+         * 检查是否完全读取帧
          */
         public boolean isFrameFullyRead() {
             return state_ == FrameBufferState.READ_FRAME_COMPLETE;
@@ -541,6 +606,7 @@ public abstract class AbstractNonblockingServer extends TServer {
 
         /**
          * Perform a read into buffer.
+         * 尝试将 Transport 数据读取到缓冲区
          *
          * @return true if the read succeeded, false if there was an error or the
          * connection closed.
@@ -560,6 +626,7 @@ public abstract class AbstractNonblockingServer extends TServer {
         /**
          * We're done writing, so reset our interest ops and change state
          * accordingly.
+         * 写入完成，尝试将状态改为读取
          */
         private void prepareRead() {
             // we can set our interest directly without using the queue because
@@ -576,6 +643,8 @@ public abstract class AbstractNonblockingServer extends TServer {
          * interest change gets done when the select thread wakes back up. When the
          * current thread is this FrameBuffer's select thread, then it just does the
          * interest change immediately.
+         * <p>
+         * 要求 FrameBuffer 的状态变化
          */
         protected void requestSelectInterestChange() {
             if (Thread.currentThread() == this.selectThread_) {
@@ -584,10 +653,13 @@ public abstract class AbstractNonblockingServer extends TServer {
                 this.selectThread_.requestSelectInterestChange(this);
             }
         }
-    } // FrameBuffer
+    }
 
+    // 异步的FrameBuffer
     public class AsyncFrameBuffer extends FrameBuffer {
-        public AsyncFrameBuffer(TNonblockingTransport trans, SelectionKey selectionKey, AbstractSelectThread selectThread) {
+        public AsyncFrameBuffer(TNonblockingTransport trans,
+                                SelectionKey selectionKey,
+                                AbstractSelectThread selectThread) {
             super(trans, selectionKey, selectThread);
         }
 
@@ -600,14 +672,20 @@ public abstract class AbstractNonblockingServer extends TServer {
         }
 
 
+        /**
+         * 执行调用
+         */
         public void invoke() {
+            // 重置 Transport
             frameTrans_.reset(buffer_.array());
             response_.reset();
 
             try {
+                // 触发事件
                 if (eventHandler_ != null) {
                     eventHandler_.processContext(context_, inTrans_, outTrans_);
                 }
+                // 调用处理器处理
                 ((TAsyncProcessor) processorFactory_.getProcessor(inTrans_)).process(this);
                 return;
             } catch (TException te) {
@@ -616,6 +694,7 @@ public abstract class AbstractNonblockingServer extends TServer {
                 LOGGER.error("Unexpected throwable while invoking!", t);
             }
             // This will only be reached when there is a throwable.
+            // 修改状态
             state_ = FrameBufferState.AWAITING_CLOSE;
             requestSelectInterestChange();
         }
