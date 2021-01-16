@@ -19,15 +19,6 @@
 
 package org.apache.thrift.server;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TProtocol;
@@ -37,323 +28,369 @@ import org.apache.thrift.transport.TTransportException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 /**
  * Server which uses Java's built in ThreadPool management to spawn off
  * a worker pool that
- *
+ * <p>
+ * 使用 Java 线程池管理工作线程的 Serve 实现
  */
 public class TThreadPoolServer extends TServer {
-  private static final Logger LOGGER = LoggerFactory.getLogger(TThreadPoolServer.class.getName());
 
-  public static class Args extends AbstractServerArgs<Args> {
-    public int minWorkerThreads = 5;
-    public int maxWorkerThreads = Integer.MAX_VALUE;
-    public ExecutorService executorService;
-    public int stopTimeoutVal = 60;
-    public TimeUnit stopTimeoutUnit = TimeUnit.SECONDS;
-    public int requestTimeout = 20;
-    public TimeUnit requestTimeoutUnit = TimeUnit.SECONDS;
-    public int beBackoffSlotLength = 100;
-    public TimeUnit beBackoffSlotLengthUnit = TimeUnit.MILLISECONDS;
+    private static final Logger LOGGER = LoggerFactory.getLogger(TThreadPoolServer.class.getName());
+    private final TimeUnit stopTimeoutUnit;
+    private final long stopTimeoutVal;
+    private final TimeUnit requestTimeoutUnit;
+    private final long requestTimeout;
+    private final long beBackoffSlotInMillis;
+    // Executor service for handling client connections
+    private ExecutorService executorService_;
+    private Random random = new Random(System.currentTimeMillis());
 
-    public Args(TServerTransport transport) {
-      super(transport);
+    public TThreadPoolServer(Args args) {
+        super(args);
+
+        stopTimeoutUnit = args.stopTimeoutUnit;
+        stopTimeoutVal = args.stopTimeoutVal;
+        requestTimeoutUnit = args.requestTimeoutUnit;
+        requestTimeout = args.requestTimeout;
+        beBackoffSlotInMillis = args.beBackoffSlotLengthUnit.toMillis(args.beBackoffSlotLength);
+
+        executorService_ = args.executorService != null ?
+                args.executorService : createDefaultExecutorService(args);
     }
 
-    public Args minWorkerThreads(int n) {
-      minWorkerThreads = n;
-      return this;
+    /**
+     * 创建默认的线程池
+     */
+    private static ExecutorService createDefaultExecutorService(Args args) {
+        SynchronousQueue<Runnable> executorQueue = new SynchronousQueue<Runnable>();
+        return new ThreadPoolExecutor(args.minWorkerThreads,
+                args.maxWorkerThreads,
+                args.stopTimeoutVal,
+                args.stopTimeoutUnit,
+                executorQueue);
     }
 
-    public Args maxWorkerThreads(int n) {
-      maxWorkerThreads = n;
-      return this;
+    protected ExecutorService getExecutorService() {
+        return executorService_;
     }
 
-    public Args stopTimeoutVal(int n) {
-      stopTimeoutVal = n;
-      return this;
+    /**
+     * Server 启动
+     */
+    protected boolean preServe() {
+        try {
+            // 监听端口
+            serverTransport_.listen();
+        } catch (TTransportException ttx) {
+            LOGGER.error("Error occurred during listening.", ttx);
+            return false;
+        }
+
+        // Run the preServe event
+        // 启动事件
+        if (eventHandler_ != null) {
+            eventHandler_.preServe();
+        }
+        stopped_ = false;
+        setServing(true);
+
+        return true;
     }
 
-    public Args stopTimeoutUnit(TimeUnit tu) {
-      stopTimeoutUnit = tu;
-      return this;
+    /**
+     * 启动 Server
+     */
+    public void serve() {
+        // 启动监听
+        if (!preServe()) {
+            return;
+        }
+
+        // 处理事件
+        execute();
+        // 等待关闭
+        waitForShutdown();
+
+        setServing(false);
     }
 
-    public Args requestTimeout(int n) {
-      requestTimeout = n;
-      return this;
-    }
+    /**
+     * 处理事件
+     */
+    protected void execute() {
+        int failureCount = 0;
+        while (!stopped_) {
+            try {
+                // 接受连接
+                TTransport client = serverTransport_.accept();
+                // 创建任务，处理该 Client 的请求
+                WorkerProcess wp = new WorkerProcess(client);
 
-    public Args requestTimeoutUnit(TimeUnit tu) {
-      requestTimeoutUnit = tu;
-      return this;
-    }
-    //Binary exponential backoff slot length
-    public Args beBackoffSlotLength(int n) {
-      beBackoffSlotLength = n;
-      return this;
-    }
-
-    //Binary exponential backoff slot time unit
-    public Args beBackoffSlotLengthUnit(TimeUnit tu) {
-      beBackoffSlotLengthUnit = tu;
-      return this;
-    }
-
-    public Args executorService(ExecutorService executorService) {
-      this.executorService = executorService;
-      return this;
-    }
-  }
-
-  // Executor service for handling client connections
-  private ExecutorService executorService_;
-
-  private final TimeUnit stopTimeoutUnit;
-
-  private final long stopTimeoutVal;
-
-  private final TimeUnit requestTimeoutUnit;
-
-  private final long requestTimeout;
-
-  private final long beBackoffSlotInMillis;
-
-  private Random random = new Random(System.currentTimeMillis());
-
-  public TThreadPoolServer(Args args) {
-    super(args);
-
-    stopTimeoutUnit = args.stopTimeoutUnit;
-    stopTimeoutVal = args.stopTimeoutVal;
-    requestTimeoutUnit = args.requestTimeoutUnit;
-    requestTimeout = args.requestTimeout;
-    beBackoffSlotInMillis = args.beBackoffSlotLengthUnit.toMillis(args.beBackoffSlotLength);
-
-    executorService_ = args.executorService != null ?
-        args.executorService : createDefaultExecutorService(args);
-  }
-
-  private static ExecutorService createDefaultExecutorService(Args args) {
-    SynchronousQueue<Runnable> executorQueue =
-      new SynchronousQueue<Runnable>();
-    return new ThreadPoolExecutor(args.minWorkerThreads,
-                                  args.maxWorkerThreads,
-                                  args.stopTimeoutVal,
-                                  args.stopTimeoutUnit,
-                                  executorQueue);
-  }
-
-  protected ExecutorService getExecutorService() {
-    return executorService_;
-  }
-  
-  protected boolean preServe() {
-  	try {
-      serverTransport_.listen();
-    } catch (TTransportException ttx) {
-      LOGGER.error("Error occurred during listening.", ttx);
-      return false;
-    }
-
-    // Run the preServe event
-    if (eventHandler_ != null) {
-      eventHandler_.preServe();
-    }
-    stopped_ = false;
-    setServing(true);
-    
-    return true;
-  }
-
-  public void serve() {
-  	if (!preServe()) {
-  		return;
-  	}
-
-  	execute();
-  	waitForShutdown();
-    
-    setServing(false);
-  }
-  
-  protected void execute() {
-    int failureCount = 0;
-    while (!stopped_) {
-      try {
-        TTransport client = serverTransport_.accept();
-        WorkerProcess wp = new WorkerProcess(client);
-
-        int retryCount = 0;
-        long remainTimeInMillis = requestTimeoutUnit.toMillis(requestTimeout);
-        while(true) {
-          try {
-            executorService_.execute(wp);
-            break;
-          } catch(Throwable t) {
-            if (t instanceof RejectedExecutionException) {
-              retryCount++;
-              try {
-                if (remainTimeInMillis > 0) {
-                  //do a truncated 20 binary exponential backoff sleep
-                  long sleepTimeInMillis = ((long) (random.nextDouble() *
-                      (1L << Math.min(retryCount, 20)))) * beBackoffSlotInMillis;
-                  sleepTimeInMillis = Math.min(sleepTimeInMillis, remainTimeInMillis);
-                  TimeUnit.MILLISECONDS.sleep(sleepTimeInMillis);
-                  remainTimeInMillis = remainTimeInMillis - sleepTimeInMillis;
-                } else {
-                  client.close();
-                  wp = null;
-                  LOGGER.warn("Task has been rejected by ExecutorService " + retryCount
-                      + " times till timedout, reason: " + t);
-                  break;
+                int retryCount = 0;
+                long remainTimeInMillis = requestTimeoutUnit.toMillis(requestTimeout);
+                while (true) {
+                    try {
+                        // 执行任务
+                        executorService_.execute(wp);
+                        break;
+                    } catch (Throwable t) {
+                        // 如果线程池满了
+                        if (t instanceof RejectedExecutionException) {
+                            retryCount++;
+                            try {
+                                // 计算剩余超时时间，Sleep 等待
+                                if (remainTimeInMillis > 0) {
+                                    //do a truncated 20 binary exponential backoff sleep
+                                    long sleepTimeInMillis = ((long) (random.nextDouble() * (1L << Math.min(retryCount, 20)))) * beBackoffSlotInMillis;
+                                    sleepTimeInMillis = Math.min(sleepTimeInMillis, remainTimeInMillis);
+                                    TimeUnit.MILLISECONDS.sleep(sleepTimeInMillis);
+                                    remainTimeInMillis = remainTimeInMillis - sleepTimeInMillis;
+                                } else {
+                                    // 超时关闭连接
+                                    client.close();
+                                    wp = null;
+                                    LOGGER.warn("Task has been rejected by ExecutorService " + retryCount
+                                            + " times till timedout, reason: " + t);
+                                    break;
+                                }
+                            } catch (InterruptedException e) {
+                                LOGGER.warn("Interrupted while waiting to place client on executor queue.");
+                                Thread.currentThread().interrupt();
+                                break;
+                            }
+                        } else if (t instanceof Error) {
+                            LOGGER.error("ExecutorService threw error: " + t, t);
+                            throw (Error) t;
+                        } else {
+                            //for other possible runtime errors from ExecutorService, should also not kill serve
+                            LOGGER.warn("ExecutorService threw error: " + t, t);
+                            break;
+                        }
+                    }
                 }
-              } catch (InterruptedException e) {
-                LOGGER.warn("Interrupted while waiting to place client on executor queue.");
-                Thread.currentThread().interrupt();
+            } catch (TTransportException ttx) {
+                if (!stopped_) {
+                    ++failureCount;
+                    LOGGER.warn("Transport error occurred during acceptance of message.", ttx);
+                }
+            }
+        }
+    }
+
+    /**
+     * 等待关闭
+     */
+    protected void waitForShutdown() {
+        executorService_.shutdown();
+
+        // Loop until awaitTermination finally does return without a interrupted
+        // exception. If we don't do this, then we'll shut down prematurely. We want
+        // to let the executorService clear it's task queue, closing client sockets
+        // appropriately.
+        long timeoutMS = stopTimeoutUnit.toMillis(stopTimeoutVal);
+        long now = System.currentTimeMillis();
+        while (timeoutMS >= 0) {
+            try {
+                executorService_.awaitTermination(timeoutMS, TimeUnit.MILLISECONDS);
                 break;
-              }
-            } else if (t instanceof Error) {
-              LOGGER.error("ExecutorService threw error: " + t, t);
-              throw (Error)t;
-            } else {
-              //for other possible runtime errors from ExecutorService, should also not kill serve
-              LOGGER.warn("ExecutorService threw error: " + t, t);
-              break;
+            } catch (InterruptedException ix) {
+                long newnow = System.currentTimeMillis();
+                timeoutMS -= (newnow - now);
+                now = newnow;
             }
-          }
         }
-      } catch (TTransportException ttx) {
-        if (!stopped_) {
-          ++failureCount;
-          LOGGER.warn("Transport error occurred during acceptance of message.", ttx);
-        }
-      }
-    }
-  }
-  
-  protected void waitForShutdown() {
-  	executorService_.shutdown();
-
-    // Loop until awaitTermination finally does return without a interrupted
-    // exception. If we don't do this, then we'll shut down prematurely. We want
-    // to let the executorService clear it's task queue, closing client sockets
-    // appropriately.
-    long timeoutMS = stopTimeoutUnit.toMillis(stopTimeoutVal);
-    long now = System.currentTimeMillis();
-    while (timeoutMS >= 0) {
-      try {
-        executorService_.awaitTermination(timeoutMS, TimeUnit.MILLISECONDS);
-        break;
-      } catch (InterruptedException ix) {
-        long newnow = System.currentTimeMillis();
-        timeoutMS -= (newnow - now);
-        now = newnow;
-      }
-    }
-  }
-
-  public void stop() {
-    stopped_ = true;
-    serverTransport_.interrupt();
-  }
-
-  private class WorkerProcess implements Runnable {
-
-    /**
-     * Client that this services.
-     */
-    private TTransport client_;
-
-    /**
-     * Default constructor.
-     *
-     * @param client Transport to process
-     */
-    private WorkerProcess(TTransport client) {
-      client_ = client;
     }
 
     /**
-     * Loops on processing a client forever
+     * 停止 Server
      */
-    public void run() {
-      TProcessor processor = null;
-      TTransport inputTransport = null;
-      TTransport outputTransport = null;
-      TProtocol inputProtocol = null;
-      TProtocol outputProtocol = null;
-
-      TServerEventHandler eventHandler = null;
-      ServerContext connectionContext = null;
-
-      try {
-        processor = processorFactory_.getProcessor(client_);
-        inputTransport = inputTransportFactory_.getTransport(client_);
-        outputTransport = outputTransportFactory_.getTransport(client_);
-        inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
-        outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
-
-        eventHandler = getEventHandler();
-        if (eventHandler != null) {
-          connectionContext = eventHandler.createContext(inputProtocol, outputProtocol);
-        }
-        // we check stopped_ first to make sure we're not supposed to be shutting
-        // down. this is necessary for graceful shutdown.
-        while (true) {
-
-            if (eventHandler != null) {
-              eventHandler.processContext(connectionContext, inputTransport, outputTransport);
-            }
-
-            if (stopped_) {
-              break;
-            }
-            processor.process(inputProtocol, outputProtocol);
-        }
-      } catch (Exception x) {
-        // We'll usually receive RuntimeException types here
-        // Need to unwrap to ascertain real causing exception before we choose to ignore
-        // Ignore err-logging all transport-level/type exceptions
-        if (!isIgnorableException(x)) {
-          // Log the exception at error level and continue
-          LOGGER.error((x instanceof TException? "Thrift " : "") + "Error occurred during processing of message.", x);
-        }
-      } finally {
-        if (eventHandler != null) {
-          eventHandler.deleteContext(connectionContext, inputProtocol, outputProtocol);
-        }
-        if (inputTransport != null) {
-          inputTransport.close();
-        }
-        if (outputTransport != null) {
-          outputTransport.close();
-        }
-        if (client_.isOpen()) {
-          client_.close();
-        }
-      }
+    public void stop() {
+        stopped_ = true;
+        serverTransport_.interrupt();
     }
 
-    private boolean isIgnorableException(Exception x) {
-      TTransportException tTransportException = null;
+    /**
+     * 构建参数
+     */
+    public static class Args extends AbstractServerArgs<Args> {
+        public int minWorkerThreads = 5;
+        public int maxWorkerThreads = Integer.MAX_VALUE;
 
-      if (x instanceof TTransportException) {
-        tTransportException = (TTransportException)x;
-      }
-      else if (x.getCause() instanceof TTransportException) {
-        tTransportException = (TTransportException)x.getCause();
-      }
+        public ExecutorService executorService;
 
-      if (tTransportException != null) {
-        switch(tTransportException.getType()) {
-          case TTransportException.END_OF_FILE:
-          case TTransportException.TIMED_OUT:
-            return true;
+        public int stopTimeoutVal = 60;
+        public TimeUnit stopTimeoutUnit = TimeUnit.SECONDS;
+
+        public int requestTimeout = 20;
+        public TimeUnit requestTimeoutUnit = TimeUnit.SECONDS;
+
+        public int beBackoffSlotLength = 100;
+        public TimeUnit beBackoffSlotLengthUnit = TimeUnit.MILLISECONDS;
+
+        public Args(TServerTransport transport) {
+            super(transport);
         }
-      }
-      return false;
+
+        public Args minWorkerThreads(int n) {
+            minWorkerThreads = n;
+            return this;
+        }
+
+        public Args maxWorkerThreads(int n) {
+            maxWorkerThreads = n;
+            return this;
+        }
+
+        public Args stopTimeoutVal(int n) {
+            stopTimeoutVal = n;
+            return this;
+        }
+
+        public Args stopTimeoutUnit(TimeUnit tu) {
+            stopTimeoutUnit = tu;
+            return this;
+        }
+
+        public Args requestTimeout(int n) {
+            requestTimeout = n;
+            return this;
+        }
+
+        public Args requestTimeoutUnit(TimeUnit tu) {
+            requestTimeoutUnit = tu;
+            return this;
+        }
+
+        //Binary exponential backoff slot length
+        public Args beBackoffSlotLength(int n) {
+            beBackoffSlotLength = n;
+            return this;
+        }
+
+        //Binary exponential backoff slot time unit
+        public Args beBackoffSlotLengthUnit(TimeUnit tu) {
+            beBackoffSlotLengthUnit = tu;
+            return this;
+        }
+
+        public Args executorService(ExecutorService executorService) {
+            this.executorService = executorService;
+            return this;
+        }
     }
-  }
+
+    /**
+     * 工作任务
+     */
+    private class WorkerProcess implements Runnable {
+
+        /**
+         * Client that this services.
+         * 客户端
+         */
+        private TTransport client_;
+
+        /**
+         * Default constructor.
+         *
+         * @param client Transport to process
+         */
+        private WorkerProcess(TTransport client) {
+            client_ = client;
+        }
+
+        /**
+         * Loops on processing a client forever
+         * 循环处理任务
+         */
+        public void run() {
+            TProcessor processor = null;
+            TTransport inputTransport = null;
+            TTransport outputTransport = null;
+            TProtocol inputProtocol = null;
+            TProtocol outputProtocol = null;
+
+            TServerEventHandler eventHandler = null;
+            ServerContext connectionContext = null;
+
+            try {
+                processor = processorFactory_.getProcessor(client_);
+                inputTransport = inputTransportFactory_.getTransport(client_);
+                outputTransport = outputTransportFactory_.getTransport(client_);
+                inputProtocol = inputProtocolFactory_.getProtocol(inputTransport);
+                outputProtocol = outputProtocolFactory_.getProtocol(outputTransport);
+
+                eventHandler = getEventHandler();
+                if (eventHandler != null) {
+                    // 通知上下文创建事件
+                    connectionContext = eventHandler.createContext(inputProtocol, outputProtocol);
+                }
+                // we check stopped_ first to make sure we're not supposed to be shutting
+                // down. this is necessary for graceful shutdown.
+                while (true) {
+
+                    if (eventHandler != null) {
+                        // 通知处理请求事件
+                        eventHandler.processContext(connectionContext, inputTransport, outputTransport);
+                    }
+
+                    if (stopped_) {
+                        break;
+                    }
+                    // 处理请求
+                    processor.process(inputProtocol, outputProtocol);
+                }
+            } catch (Exception x) {
+                // We'll usually receive RuntimeException types here
+                // Need to unwrap to ascertain real causing exception before we choose to ignore
+                // Ignore err-logging all transport-level/type exceptions
+                if (!isIgnorableException(x)) {
+                    // Log the exception at error level and continue
+                    LOGGER.error((x instanceof TException ? "Thrift " : "") + "Error occurred during processing of message.", x);
+                }
+            } finally {
+                if (eventHandler != null) {
+                    // 通知删除上下文事件
+                    eventHandler.deleteContext(connectionContext, inputProtocol, outputProtocol);
+                }
+                // 关闭
+                if (inputTransport != null) {
+                    inputTransport.close();
+                }
+                if (outputTransport != null) {
+                    outputTransport.close();
+                }
+                if (client_.isOpen()) {
+                    client_.close();
+                }
+            }
+        }
+
+        private boolean isIgnorableException(Exception x) {
+            TTransportException tTransportException = null;
+
+            if (x instanceof TTransportException) {
+                tTransportException = (TTransportException) x;
+            } else if (x.getCause() instanceof TTransportException) {
+                tTransportException = (TTransportException) x.getCause();
+            }
+
+            if (tTransportException != null) {
+                switch (tTransportException.getType()) {
+                    case TTransportException.END_OF_FILE:
+                    case TTransportException.TIMED_OUT:
+                        return true;
+                }
+            }
+            return false;
+        }
+    }
 }
