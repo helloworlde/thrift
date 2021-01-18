@@ -24,22 +24,28 @@ import org.apache.thrift.protocol.TProtocol;
 /**
  * A TServiceClientFactory provides a general way to get a TServiceClient
  * connected to a remote TService via a protocol.
+ * TServiceClient 工厂，提供 TServiceClient
+ *
  * @param <T>
  */
 public interface TServiceClientFactory<T extends TServiceClient> {
-  /**
-   * Get a brand-new T using <i>prot</i> as both the input and output protocol.
-   * @param prot
-   * @return A brand-new T using <i>prot</i> as both the input and output protocol.
-   */
-  public T getClient(TProtocol prot);
+    /**
+     * Get a brand-new T using <i>prot</i> as both the input and output protocol.
+     * 使用同一个 TProtocol 作为输入和输出的协议
+     *
+     * @param prot
+     * @return A brand-new T using <i>prot</i> as both the input and output protocol.
+     */
+    public T getClient(TProtocol prot);
 
-  /**
-   * Get a brand new T using the specified input and output protocols. The
-   * input and output protocols may be the same instance.
-   * @param iprot
-   * @param oprot
-   * @return a brand new T using the specified input and output protocols
-   */
-  public T getClient(TProtocol iprot, TProtocol oprot);
+    /**
+     * Get a brand new T using the specified input and output protocols. The
+     * input and output protocols may be the same instance.
+     * 使用输入和输出协议构建 Client
+     *
+     * @param iprot
+     * @param oprot
+     * @return a brand new T using the specified input and output protocols
+     */
+    public T getClient(TProtocol iprot, TProtocol oprot);
 }
