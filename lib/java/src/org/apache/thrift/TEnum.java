@@ -19,6 +19,9 @@
 
 package org.apache.thrift;
 
+/**
+ * 枚举类接口
+ */
 public interface TEnum {
-  public int getValue();
+    public int getValue();
 }

@@ -20,15 +20,18 @@ package org.apache.thrift;
 
 /**
  * Interface for all generated struct Fields objects.
+ * 生成的结构体对象的接口
  */
 public interface TFieldIdEnum {
-  /**
-   * Get the Thrift field id for the named field.
-   */
-  public short getThriftFieldId();
+    /**
+     * Get the Thrift field id for the named field.
+     * 获取指定字段的 ID
+     */
+    public short getThriftFieldId();
 
-  /**
-   * Get the field's name, exactly as in the IDL.
-   */
-  public String getFieldName();
+    /**
+     * Get the field's name, exactly as in the IDL.
+     * 获取属性名称，与 IDL 中相同
+     */
+    public String getFieldName();
 }
