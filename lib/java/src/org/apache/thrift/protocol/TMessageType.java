@@ -24,8 +24,11 @@ package org.apache.thrift.protocol;
  * Thrift 协议的消息类型
  */
 public final class TMessageType {
+    // 直接调用
     public static final byte CALL = 1;
     public static final byte REPLY = 2;
+    // 返回异常
     public static final byte EXCEPTION = 3;
+    // 单向调用
     public static final byte ONEWAY = 4;
 }

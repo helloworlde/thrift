@@ -23,22 +23,26 @@ import org.apache.thrift.protocol.TProtocol;
 
 /**
  * Generic base interface for generated Thrift objects.
- *
+ * 用于生成 Thrift 对象的泛化基础接口
  */
 public interface TSerializable {
 
-  /**
-   * Reads the TObject from the given input protocol.
-   *
-   * @param iprot Input protocol
-   */
-  public void read(TProtocol iprot) throws TException;
+    /**
+     * Reads the TObject from the given input protocol.
+     * 从给定的协议中读取对象
+     *
+     * @param iprot Input protocol
+     *              协议
+     */
+    public void read(TProtocol iprot) throws TException;
 
-  /**
-   * Writes the objects out to the protocol
-   *
-   * @param oprot Output protocol
-   */
-  public void write(TProtocol oprot) throws TException;
+    /**
+     * Writes the objects out to the protocol
+     * 将对象写出到协议
+     *
+     * @param oprot Output protocol
+     *              协议
+     */
+    public void write(TProtocol oprot) throws TException;
 
 }

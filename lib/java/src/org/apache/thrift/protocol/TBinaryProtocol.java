@@ -110,12 +110,21 @@ public class TBinaryProtocol extends TProtocol {
     strictWrite_ = strictWrite;
   }
 
+  /**
+   * 开始写入消息
+   *
+   * @param message 消息
+   * @throws TException
+   */
   @Override
   public void writeMessageBegin(TMessage message) throws TException {
     if (strictWrite_) {
+      // 写入版本
       int version = VERSION_1 | message.type;
       writeI32(version);
+      // 被调用方法
       writeString(message.name);
+      // 请求序号
       writeI32(message.seqid);
     } else {
       writeString(message.name);
@@ -199,6 +208,7 @@ public class TBinaryProtocol extends TProtocol {
     inoutTemp[1] = (byte)(0xff & (i32 >> 16));
     inoutTemp[2] = (byte)(0xff & (i32 >> 8));
     inoutTemp[3] = (byte)(0xff & (i32));
+    // 向 Transport 中写入
     trans_.write(inoutTemp, 0, 4);
   }
 
@@ -236,6 +246,7 @@ public class TBinaryProtocol extends TProtocol {
 
   /**
    * Reading methods.
+   * 读取消息
    */
 
   @Override
@@ -379,9 +390,9 @@ public class TBinaryProtocol extends TProtocol {
       ((long)(buf[off+2] & 0xff) << 40) |
       ((long)(buf[off+3] & 0xff) << 32) |
       ((long)(buf[off+4] & 0xff) << 24) |
-      ((long)(buf[off+5] & 0xff) << 16) |
-      ((long)(buf[off+6] & 0xff) <<  8) |
-      ((long)(buf[off+7] & 0xff));
+              ((long) (buf[off + 5] & 0xff) << 16) |
+              ((long) (buf[off + 6] & 0xff) << 8) |
+              ((long) (buf[off + 7] & 0xff));
   }
 
   @Override
@@ -389,19 +400,26 @@ public class TBinaryProtocol extends TProtocol {
     return Double.longBitsToDouble(readI64());
   }
 
+  /**
+   * 读取方法名
+   *
+   * @return 方法名
+   * @throws TException
+   */
   @Override
   public String readString() throws TException {
+    // 获取长度
     int size = readI32();
 
     checkStringReadLength(size);
 
     if (trans_.getBytesRemainingInBuffer() >= size) {
-      String s = new String(trans_.getBuffer(), trans_.getBufferPosition(),
-          size, StandardCharsets.UTF_8);
+      String s = new String(trans_.getBuffer(), trans_.getBufferPosition(), size, StandardCharsets.UTF_8);
       trans_.consumeBuffer(size);
       return s;
     }
 
+    // 获取指定长度的内容
     return readStringBody(size);
   }
 
