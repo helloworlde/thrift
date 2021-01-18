@@ -19,11 +19,14 @@
 
 package org.apache.thrift.meta_data;
 
+/**
+ * List 元数据类型
+ */
 public class ListMetaData extends FieldValueMetaData {
-  public final FieldValueMetaData elemMetaData;
-  
-  public ListMetaData(byte type, FieldValueMetaData eMetaData){
-    super(type);
-    this.elemMetaData = eMetaData;
-  }    
+    public final FieldValueMetaData elemMetaData;
+
+    public ListMetaData(byte type, FieldValueMetaData eMetaData) {
+        super(type);
+        this.elemMetaData = eMetaData;
+    }
 }

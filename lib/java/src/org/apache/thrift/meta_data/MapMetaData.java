@@ -17,15 +17,21 @@
  * under the License.
  */
 
+
 package org.apache.thrift.meta_data;
 
+/**
+ * Map 元数据类型
+ */
 public class MapMetaData extends FieldValueMetaData {
-  public final FieldValueMetaData keyMetaData;
-  public final FieldValueMetaData valueMetaData;
-  
-  public MapMetaData(byte type, FieldValueMetaData kMetaData, FieldValueMetaData vMetaData){
-    super(type);
-    this.keyMetaData = kMetaData;
-    this.valueMetaData = vMetaData;
-  }    
+
+    public final FieldValueMetaData keyMetaData;
+
+    public final FieldValueMetaData valueMetaData;
+
+    public MapMetaData(byte type, FieldValueMetaData kMetaData, FieldValueMetaData vMetaData) {
+        super(type);
+        this.keyMetaData = kMetaData;
+        this.valueMetaData = vMetaData;
+    }
 }

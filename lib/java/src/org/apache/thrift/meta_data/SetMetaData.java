@@ -19,11 +19,15 @@
 
 package org.apache.thrift.meta_data;
 
+/**
+ * Set 元数据类型
+ */
 public class SetMetaData extends FieldValueMetaData {
-  public final FieldValueMetaData elemMetaData;
-  
-  public SetMetaData(byte type, FieldValueMetaData eMetaData){
-    super(type);
-    this.elemMetaData = eMetaData;
-  }    
+
+    public final FieldValueMetaData elemMetaData;
+
+    public SetMetaData(byte type, FieldValueMetaData eMetaData) {
+        super(type);
+        this.elemMetaData = eMetaData;
+    }
 }
