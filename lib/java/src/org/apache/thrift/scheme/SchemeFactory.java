@@ -18,8 +18,11 @@
  */
 package org.apache.thrift.scheme;
 
+/**
+ * Scheme 工厂
+ */
 public interface SchemeFactory {
 
-  public <S extends IScheme> S getScheme();
+    public <S extends IScheme> S getScheme();
 
 }

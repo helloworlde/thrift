@@ -20,6 +20,11 @@ package org.apache.thrift.scheme;
 
 import org.apache.thrift.TBase;
 
+/**
+ * 元组协议
+ *
+ * @param <T>
+ */
 public abstract class TupleScheme<T extends TBase> implements IScheme<T> {
 
 }

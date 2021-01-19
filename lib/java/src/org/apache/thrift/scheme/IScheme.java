@@ -20,10 +20,29 @@ package org.apache.thrift.scheme;
 
 import org.apache.thrift.TBase;
 
+/**
+ * 协议
+ *
+ * @param <T>
+ */
 public interface IScheme<T extends TBase> {
 
-  public void read(org.apache.thrift.protocol.TProtocol iproto, T struct) throws org.apache.thrift.TException;
+    /**
+     * 从 Protocol 读取内容写入到结构体中
+     *
+     * @param iproto 输入协议
+     * @param struct 结构体
+     * @throws org.apache.thrift.TException
+     */
+    public void read(org.apache.thrift.protocol.TProtocol iproto, T struct) throws org.apache.thrift.TException;
 
-  public void write(org.apache.thrift.protocol.TProtocol oproto, T struct) throws org.apache.thrift.TException;
+    /**
+     * 将结构体对象写入到 Protocol 中
+     *
+     * @param oproto 输出协议
+     * @param struct 结构体
+     * @throws org.apache.thrift.TException
+     */
+    public void write(org.apache.thrift.protocol.TProtocol oproto, T struct) throws org.apache.thrift.TException;
 
 }
