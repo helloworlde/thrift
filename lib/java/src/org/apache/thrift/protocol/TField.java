@@ -22,44 +22,46 @@ package org.apache.thrift.protocol;
 /**
  * Helper class that encapsulates field metadata.
  * <p>Two fields are considered equal if they have the same type and id.</p>
+ * <p>
+ * 属性结构体工具类
  */
 public class TField {
-  public TField() {
-    this("", TType.STOP, (short)0);
-  }
+    public final String name;
+    public final byte type;
+    public final short id;
 
-  public TField(String n, byte t, short i) {
-    name = n;
-    type = t;
-    id = i;
-  }
+    public TField() {
+        this("", TType.STOP, (short) 0);
+    }
 
-  public final String name;
-  public final byte   type;
-  public final short  id;
+    public TField(String n, byte t, short i) {
+        name = n;
+        type = t;
+        id = i;
+    }
 
-  public String toString() {
-    return "<TField name:'" + name + "' type:" + type + " field-id:" + id + ">";
-  }
+    public String toString() {
+        return "<TField name:'" + name + "' type:" + type + " field-id:" + id + ">";
+    }
 
-  @Override
-  public int hashCode() {
-    final int prime = 31;
-    int result = 1;
-    result = prime * result + id;
-    result = prime * result + type;
-    return result;
-  }
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + id;
+        result = prime * result + type;
+        return result;
+    }
 
-  @Override
-  public boolean equals(Object obj) {
-    if (this == obj)
-      return true;
-    if (obj == null)
-      return false;
-    if (getClass() != obj.getClass())
-      return false;
-    TField otherField = (TField) obj;
-    return type == otherField.type && id == otherField.id;
-  }
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        TField otherField = (TField) obj;
+        return type == otherField.type && id == otherField.id;
+    }
 }
