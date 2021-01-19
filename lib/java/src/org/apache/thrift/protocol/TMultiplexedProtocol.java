@@ -25,9 +25,12 @@ import org.apache.thrift.TException;
  * <code>TMultiplexedProtocol</code> is a protocol-independent concrete decorator
  * that allows a Thrift client to communicate with a multiplexing Thrift server,
  * by prepending the service name to the function name during function calls.
+ * TMultiplexedProtocol 是一个协议独立的装饰器，通过在函数调用期间在服务名称之前添加服务名称，
+ * 允许客户端与多个协议的服务端交互
  *
  * <p>NOTE: THIS IS NOT USED BY SERVERS.  On the server, use {@link org.apache.thrift.TMultiplexedProcessor TMultiplexedProcessor} to handle requests
  * from a multiplexing client.
+ * 不是用于 Server，TMultiplexedProcessor 用于处理多个协议的客户端
  *
  * <p>This example uses a single socket transport to invoke two services:
  *
@@ -53,7 +56,9 @@ import org.apache.thrift.TException;
  */
 public class TMultiplexedProtocol extends TProtocolDecorator {
 
-    /** Used to delimit the service name from the function name */
+    /**
+     * Used to delimit the service name from the function name
+     */
     public static final String SEPARATOR = ":";
 
     private final String SERVICE_NAME;
@@ -64,7 +69,7 @@ public class TMultiplexedProtocol extends TProtocolDecorator {
      * prepended to the message header so that the multiplexing server can broker
      * the function call to the proper service.
      *
-     * @param protocol Your communication protocol of choice, e.g. <code>TBinaryProtocol</code>.
+     * @param protocol    Your communication protocol of choice, e.g. <code>TBinaryProtocol</code>.
      * @param serviceName The service name of the service communicating via this protocol.
      */
     public TMultiplexedProtocol(TProtocol protocol, String serviceName) {

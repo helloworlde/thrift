@@ -19,10 +19,15 @@
 
 package org.apache.thrift;
 
-import org.apache.thrift.protocol.*;
+import org.apache.thrift.protocol.TMessage;
+import org.apache.thrift.protocol.TMessageType;
+import org.apache.thrift.protocol.TMultiplexedProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.protocol.TProtocolDecorator;
+import org.apache.thrift.protocol.TProtocolException;
 
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * <code>TMultiplexedProcessor</code> is a <code>TProcessor</code> allowing
@@ -31,7 +36,8 @@ import java.util.HashMap;
  * <p>To do so, you instantiate the processor and then register additional
  * processors with it, as shown in the following example:</p>
  *
- * <blockquote><code>
+ * <pre>
+ * {@code
  *     TMultiplexedProcessor processor = new TMultiplexedProcessor();
  *
  *     processor.registerProcessor(
@@ -46,12 +52,13 @@ import java.util.HashMap;
  *     TSimpleServer server = new TSimpleServer(processor, t);
  *
  *     server.serve();
- * </code></blockquote>
+ *     }
+ * </pre>
  */
 public class TMultiplexedProcessor implements TProcessor {
 
-    private final Map<String,TProcessor> SERVICE_PROCESSOR_MAP
-            = new HashMap<String,TProcessor>();
+    private final Map<String, TProcessor> SERVICE_PROCESSOR_MAP
+            = new HashMap<String, TProcessor>();
     private TProcessor defaultProcessor;
 
     /**
@@ -60,9 +67,9 @@ public class TMultiplexedProcessor implements TProcessor {
      * name to select them at request time.
      *
      * @param serviceName Name of a service, has to be identical to the name
-     * declared in the Thrift IDL, e.g. "WeatherReport".
-     * @param processor Implementation of a service, usually referred to
-     * as "handlers", e.g. WeatherReportHandler implementing WeatherReport.Iface.
+     *                    declared in the Thrift IDL, e.g. "WeatherReport".
+     * @param processor   Implementation of a service, usually referred to
+     *                    as "handlers", e.g. WeatherReportHandler implementing WeatherReport.Iface.
      */
     public void registerProcessor(String serviceName, TProcessor processor) {
         SERVICE_PROCESSOR_MAP.put(serviceName, processor);
@@ -70,6 +77,7 @@ public class TMultiplexedProcessor implements TProcessor {
 
     /**
      * Register a service to be called to process queries without service name
+     *
      * @param processor
      */
     public void registerDefault(TProcessor processor) {
@@ -88,9 +96,9 @@ public class TMultiplexedProcessor implements TProcessor {
      * </ol>
      *
      * @throws TProtocolException If the message type is not CALL or ONEWAY, if
-     * the service name was not found in the message, or if the service
-     * name was not found in the service map.  You called {@link #registerProcessor(String, TProcessor) registerProcessor}
-     * during initialization, right? :)
+     *                            the service name was not found in the message, or if the service
+     *                            name was not found in the service map.  You called {@link #registerProcessor(String, TProcessor) registerProcessor}
+     *                            during initialization, right? :)
      */
     public void process(TProtocol iprot, TProtocol oprot) throws TException {
         /*
@@ -102,20 +110,20 @@ public class TMultiplexedProcessor implements TProcessor {
 
         if (message.type != TMessageType.CALL && message.type != TMessageType.ONEWAY) {
             throw new TProtocolException(TProtocolException.NOT_IMPLEMENTED,
-                "This should not have happened!?");
+                    "This should not have happened!?");
         }
 
         // Extract the service name
         int index = message.name.indexOf(TMultiplexedProtocol.SEPARATOR);
         if (index < 0) {
-          if (defaultProcessor != null) {
+            if (defaultProcessor != null) {
                 // Dispatch processing to the stored processor
                 defaultProcessor.process(new StoredMessageProtocol(iprot, message), oprot);
                 return;
-          }
+            }
             throw new TProtocolException(TProtocolException.NOT_IMPLEMENTED,
-                "Service name not found in message name: " + message.name + ".  Did you " +
-                "forget to use a TMultiplexProtocol in your client?");
+                    "Service name not found in message name: " + message.name + ".  Did you " +
+                            "forget to use a TMultiplexProtocol in your client?");
         }
 
         // Create a new TMessage, something that can be consumed by any TProtocol
@@ -123,13 +131,13 @@ public class TMultiplexedProcessor implements TProcessor {
         TProcessor actualProcessor = SERVICE_PROCESSOR_MAP.get(serviceName);
         if (actualProcessor == null) {
             throw new TProtocolException(TProtocolException.NOT_IMPLEMENTED,
-                "Service name not found: " + serviceName + ".  Did you forget " +
-                "to call registerProcessor()?");
+                    "Service name not found: " + serviceName + ".  Did you forget " +
+                            "to call registerProcessor()?");
         }
 
         // Create a new TMessage, removing the service name
         TMessage standardMessage = new TMessage(
-                message.name.substring(serviceName.length()+TMultiplexedProtocol.SEPARATOR.length()),
+                message.name.substring(serviceName.length() + TMultiplexedProtocol.SEPARATOR.length()),
                 message.type,
                 message.seqid
         );
@@ -139,16 +147,21 @@ public class TMultiplexedProcessor implements TProcessor {
     }
 
     /**
-     *  Our goal was to work with any protocol.  In order to do that, we needed
-     *  to allow them to call readMessageBegin() and get a TMessage in exactly
-     *  the standard format, without the service name prepended to TMessage.name.
+     * Our goal was to work with any protocol.  In order to do that, we needed
+     * to allow them to call readMessageBegin() and get a TMessage in exactly
+     * the standard format, without the service name prepended to TMessage.name.
+     * <p>
+     * 目标是在任意协议下都可以工作，允许调用 readMessageBegin() 获取 TMessage 的格式，
+     * 无需在 Message 前面添加服务名
      */
     private static class StoredMessageProtocol extends TProtocolDecorator {
         TMessage messageBegin;
+
         public StoredMessageProtocol(TProtocol protocol, TMessage messageBegin) {
             super(protocol);
             this.messageBegin = messageBegin;
         }
+
         @Override
         public TMessage readMessageBegin() throws TException {
             return messageBegin;

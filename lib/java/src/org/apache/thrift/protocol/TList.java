@@ -21,18 +21,18 @@ package org.apache.thrift.protocol;
 
 /**
  * Helper class that encapsulates list metadata.
- *
+ * List 元数据工具类
  */
 public final class TList {
-  public TList() {
-    this(TType.STOP, 0);
-  }
+    public final byte elemType;
+    public final int size;
 
-  public TList(byte t, int s) {
-    elemType = t;
-    size = s;
-  }
+    public TList() {
+        this(TType.STOP, 0);
+    }
 
-  public final byte elemType;
-  public final int  size;
+    public TList(byte t, int s) {
+        elemType = t;
+        size = s;
+    }
 }

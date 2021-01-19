@@ -21,16 +21,16 @@ package org.apache.thrift.protocol;
 
 /**
  * Helper class that encapsulates struct metadata.
- *
+ * 封装结构体元数据的工具类
  */
 public final class TStruct {
-  public TStruct() {
-    this("");
-  }
+    public final String name;
 
-  public TStruct(String n) {
-    name = n;
-  }
+    public TStruct() {
+        this("");
+    }
 
-  public final String name;
+    public TStruct(String n) {
+        name = n;
+    }
 }
