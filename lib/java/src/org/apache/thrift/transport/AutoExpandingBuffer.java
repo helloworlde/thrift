@@ -26,25 +26,29 @@ import java.util.Arrays;
  * and then use the array as needed. Note that the internal array will grow at a
  * rate slightly faster than the requested capacity with the (untested)
  * objective of avoiding expensive buffer allocations and copies.
+ * <p>
+ * 封装了 byte 数组，可以用于扩展和重用，应当调用 resizeIfNecessary 确保缓冲区容量合适，
+ * 需要注意内部数组的增长速度将比请求的容量稍快一些，目的是（避免）避免昂贵的缓冲区分配和复制
  */
 class AutoExpandingBuffer {
-  private byte[] array;
 
-  public AutoExpandingBuffer(int initialCapacity) {
-    this.array = new byte[initialCapacity];
-  }
+    private byte[] array;
 
-  public void resizeIfNecessary(int size) {
-    final int currentCapacity = this.array.length;
-    if (currentCapacity < size) {
-      // Increase by a factor of 1.5x
-      int growCapacity = currentCapacity + (currentCapacity >> 1);
-      int newCapacity = Math.max(growCapacity, size);
-      this.array = Arrays.copyOf(array, newCapacity);
+    public AutoExpandingBuffer(int initialCapacity) {
+        this.array = new byte[initialCapacity];
     }
-  }
 
-  public byte[] array() {
-    return this.array;
-  }
+    public void resizeIfNecessary(int size) {
+        final int currentCapacity = this.array.length;
+        if (currentCapacity < size) {
+            // Increase by a factor of 1.5x
+            int growCapacity = currentCapacity + (currentCapacity >> 1);
+            int newCapacity = Math.max(growCapacity, size);
+            this.array = Arrays.copyOf(array, newCapacity);
+        }
+    }
+
+    public byte[] array() {
+        return this.array;
+    }
 }
