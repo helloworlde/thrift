@@ -21,31 +21,35 @@ package org.apache.thrift.async;
 /**
  * A handler interface asynchronous clients can implement to receive future
  * notice of the results of an asynchronous method call.
+ * 异步调用回调，用于接收异步调用的结果
  *
  * @param <T> The return type of the asynchronously invoked method.
  */
 public interface AsyncMethodCallback<T> {
-  /**
-   * This method will be called when the remote side has completed invoking
-   * your method call and the result is fully read. For {@code oneway} method
-   * calls, this method will be called as soon as we have completed writing out
-   * the request.
-   *
-   * @param response The return value of the asynchronously invoked method;
-   *                 {@code null} for void methods which includes
-   *                 {@code oneway} methods.
-   */
-  void onComplete(T response);
+    /**
+     * This method will be called when the remote side has completed invoking
+     * your method call and the result is fully read. For {@code oneway} method
+     * calls, this method will be called as soon as we have completed writing out
+     * the request.
+     * 当调用完成，响应被完全读取时会被触发，对于 oneway 方法调用，当调用之后会尽快触发
+     *
+     * @param response The return value of the asynchronously invoked method;
+     *                 {@code null} for void methods which includes
+     *                 {@code oneway} methods.
+     *                 异步调用的方法结果，如果是 oneway 调用则是 null
+     */
+    void onComplete(T response);
 
-  /**
-   * This method will be called when there is either an unexpected client-side
-   * exception like an IOException or else when the remote method raises an
-   * exception, either declared in the IDL or due to an unexpected server-side
-   * error.
-   *
-   * @param exception The exception encountered processing the the asynchronous
-   *                  method call, may be a local exception or an unmarshalled
-   *                  remote exception.
-   */
-  void onError(Exception exception);
+    /**
+     * This method will be called when there is either an unexpected client-side
+     * exception like an IOException or else when the remote method raises an
+     * exception, either declared in the IDL or due to an unexpected server-side
+     * error.
+     * 当调用失败时会触发
+     *
+     * @param exception The exception encountered processing the the asynchronous
+     *                  method call, may be a local exception or an unmarshalled
+     *                  remote exception.
+     */
+    void onError(Exception exception);
 }

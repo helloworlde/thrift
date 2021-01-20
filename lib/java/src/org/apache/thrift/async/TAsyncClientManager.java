@@ -18,6 +18,10 @@
  */
 package org.apache.thrift.async;
 
+import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.channels.ClosedSelectorException;
@@ -30,172 +34,198 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.thrift.TException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * Contains selector thread which transitions method call objects
+ * <p>
+ * 包含用于转换方法调用对象的选择器线程
  */
 public class TAsyncClientManager {
-  private static final Logger LOGGER = LoggerFactory.getLogger(TAsyncClientManager.class.getName());
 
-  private final SelectThread selectThread;
-  private final ConcurrentLinkedQueue<TAsyncMethodCall> pendingCalls = new ConcurrentLinkedQueue<TAsyncMethodCall>();
+    private static final Logger LOGGER = LoggerFactory.getLogger(TAsyncClientManager.class.getName());
 
-  public TAsyncClientManager() throws IOException {
-    this.selectThread = new SelectThread();
-    selectThread.start();
-  }
+    // 选择线程
+    private final SelectThread selectThread;
 
-  public void call(TAsyncMethodCall method) throws TException {
-    if (!isRunning()) {
-      throw new TException("SelectThread is not running");
-    }
-    method.prepareMethodCall();
-    pendingCalls.add(method);
-    selectThread.getSelector().wakeup();
-  }
+    private final ConcurrentLinkedQueue<TAsyncMethodCall> pendingCalls = new ConcurrentLinkedQueue<TAsyncMethodCall>();
 
-  public void stop() {
-    selectThread.finish();
-  }
-
-  public boolean isRunning() {
-    return selectThread.isAlive();
-  }
-
-  private class SelectThread extends Thread {
-    private final Selector selector;
-    private volatile boolean running;
-    private final TreeSet<TAsyncMethodCall> timeoutWatchSet = new TreeSet<TAsyncMethodCall>(new TAsyncMethodCallTimeoutComparator());
-
-    public SelectThread() throws IOException {
-      this.selector = SelectorProvider.provider().openSelector();
-      this.running = true;
-      this.setName("TAsyncClientManager#SelectorThread " + this.getId());
-
-      // We don't want to hold up the JVM when shutting down
-      setDaemon(true);
+    public TAsyncClientManager() throws IOException {
+        this.selectThread = new SelectThread();
+        selectThread.start();
     }
 
-    public Selector getSelector() {
-      return selector;
+    /**
+     * 开始调用
+     *
+     * @param method
+     * @throws TException
+     */
+    public void call(TAsyncMethodCall method) throws TException {
+        if (!isRunning()) {
+            throw new TException("SelectThread is not running");
+        }
+        // 初始化缓冲区
+        method.prepareMethodCall();
+        // 添加到待执行方法中，由 SelectThread 处理
+        pendingCalls.add(method);
+        selectThread.getSelector().wakeup();
     }
 
-    public void finish() {
-      running = false;
-      selector.wakeup();
+    public void stop() {
+        selectThread.finish();
     }
 
-    public void run() {
-      while (running) {
-        try {
-          try {
-            if (timeoutWatchSet.size() == 0) {
-              // No timeouts, so select indefinitely
-              selector.select();
+    public boolean isRunning() {
+        return selectThread.isAlive();
+    }
+
+    /**
+     * Comparator used in TreeSet
+     * 超时对比
+     */
+    private static class TAsyncMethodCallTimeoutComparator implements Comparator<TAsyncMethodCall>, Serializable {
+        public int compare(TAsyncMethodCall left, TAsyncMethodCall right) {
+            if (left.getTimeoutTimestamp() == right.getTimeoutTimestamp()) {
+                return (int) (left.getSequenceId() - right.getSequenceId());
             } else {
-              // We have a timeout pending, so calculate the time until then and select appropriately
-              long nextTimeout = timeoutWatchSet.first().getTimeoutTimestamp();
-              long selectTime = nextTimeout - System.currentTimeMillis();
-              if (selectTime > 0) {
-                // Next timeout is in the future, select and wake up then
-                selector.select(selectTime);
-              } else {
-                // Next timeout is now or in past, select immediately so we can time out
-                selector.selectNow();
-              }
+                return (int) (left.getTimeoutTimestamp() - right.getTimeoutTimestamp());
             }
-          } catch (IOException e) {
-            LOGGER.error("Caught IOException in TAsyncClientManager!", e);
-          }
-          transitionMethods();
-          timeoutMethods();
-          startPendingMethods();
-        } catch (Exception exception) {
-          LOGGER.error("Ignoring uncaught exception in SelectThread", exception);
         }
-      }
-
-      try {
-        selector.close();
-      } catch (IOException ex) {
-        LOGGER.warn("Could not close selector. This may result in leaked resources!", ex);
-      }
     }
 
-    // Transition methods for ready keys
-    private void transitionMethods() {
-      try {
-        Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
-        while (keys.hasNext()) {
-          SelectionKey key = keys.next();
-          keys.remove();
-          if (!key.isValid()) {
-            // this can happen if the method call experienced an error and the
-            // key was cancelled. can also happen if we timeout a method, which
-            // results in a channel close.
-            // just skip
-            continue;
-          }
-          TAsyncMethodCall methodCall = (TAsyncMethodCall)key.attachment();
-          methodCall.transition(key);
+    /**
+     * 选择线程
+     */
+    private class SelectThread extends Thread {
 
-          // If done or error occurred, remove from timeout watch set
-          if (methodCall.isFinished() || methodCall.getClient().hasError()) {
-            timeoutWatchSet.remove(methodCall);
-          }
+        private final Selector selector;
+        private final TreeSet<TAsyncMethodCall> timeoutWatchSet = new TreeSet<TAsyncMethodCall>(new TAsyncMethodCallTimeoutComparator());
+        private volatile boolean running;
+
+        public SelectThread() throws IOException {
+            this.selector = SelectorProvider.provider().openSelector();
+            this.running = true;
+            this.setName("TAsyncClientManager#SelectorThread " + this.getId());
+
+            // We don't want to hold up the JVM when shutting down
+            setDaemon(true);
         }
-      } catch (ClosedSelectorException e) {
-        LOGGER.error("Caught ClosedSelectorException in TAsyncClientManager!", e);
-      }
-    }
 
-    // Timeout any existing method calls
-    private void timeoutMethods() {
-      Iterator<TAsyncMethodCall> iterator = timeoutWatchSet.iterator();
-      long currentTime = System.currentTimeMillis();
-      while (iterator.hasNext()) {
-        TAsyncMethodCall methodCall = iterator.next();
-        if (currentTime >= methodCall.getTimeoutTimestamp()) {
-          iterator.remove();
-          methodCall.onError(new TimeoutException("Operation " + methodCall.getClass() + " timed out after " + (currentTime - methodCall.getStartTime()) + " ms."));
-        } else {
-          break;
+        public Selector getSelector() {
+            return selector;
         }
-      }
-    }
 
-    // Start any new calls
-    private void startPendingMethods() {
-      TAsyncMethodCall methodCall;
-      while ((methodCall = pendingCalls.poll()) != null) {
-        // Catch registration errors. method will catch transition errors and cleanup.
-        try {
-          methodCall.start(selector);
-
-          // If timeout specified and first transition went smoothly, add to timeout watch set
-          TAsyncClient client = methodCall.getClient();
-          if (client.hasTimeout() && !client.hasError()) {
-            timeoutWatchSet.add(methodCall);
-          }
-        } catch (Exception exception) {
-          LOGGER.warn("Caught exception in TAsyncClientManager!", exception);
-          methodCall.onError(exception);
+        public void finish() {
+            running = false;
+            selector.wakeup();
         }
-      }
-    }
-  }
 
-  /** Comparator used in TreeSet */
-  private static class TAsyncMethodCallTimeoutComparator implements Comparator<TAsyncMethodCall>, Serializable {
-    public int compare(TAsyncMethodCall left, TAsyncMethodCall right) {
-      if (left.getTimeoutTimestamp() == right.getTimeoutTimestamp()) {
-        return (int)(left.getSequenceId() - right.getSequenceId());
-      } else {
-        return (int)(left.getTimeoutTimestamp() - right.getTimeoutTimestamp());
-      }
+        public void run() {
+            while (running) {
+                try {
+                    try {
+                        if (timeoutWatchSet.size() == 0) {
+                            // No timeouts, so select indefinitely
+                            selector.select();
+                        } else {
+                            // We have a timeout pending, so calculate the time until then and select appropriately
+                            long nextTimeout = timeoutWatchSet.first().getTimeoutTimestamp();
+                            long selectTime = nextTimeout - System.currentTimeMillis();
+                            if (selectTime > 0) {
+                                // Next timeout is in the future, select and wake up then
+                                selector.select(selectTime);
+                            } else {
+                                // Next timeout is now or in past, select immediately so we can time out
+                                selector.selectNow();
+                            }
+                        }
+                    } catch (IOException e) {
+                        LOGGER.error("Caught IOException in TAsyncClientManager!", e);
+                    }
+                    // 过渡状态
+                    transitionMethods();
+                    // 检查是否超时
+                    timeoutMethods();
+                    // 开始待执行的方法
+                    startPendingMethods();
+                } catch (Exception exception) {
+                    LOGGER.error("Ignoring uncaught exception in SelectThread", exception);
+                }
+            }
+
+            try {
+                selector.close();
+            } catch (IOException ex) {
+                LOGGER.warn("Could not close selector. This may result in leaked resources!", ex);
+            }
+        }
+
+        // Transition methods for ready keys
+        // 就绪的 key 的过渡方法
+        private void transitionMethods() {
+            try {
+                Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+                while (keys.hasNext()) {
+                    SelectionKey key = keys.next();
+                    keys.remove();
+                    if (!key.isValid()) {
+                        // this can happen if the method call experienced an error and the
+                        // key was cancelled. can also happen if we timeout a method, which
+                        // results in a channel close.
+                        // just skip
+                        continue;
+                    }
+                    // 获取方法
+                    TAsyncMethodCall methodCall = (TAsyncMethodCall) key.attachment();
+                    // 过渡状态
+                    methodCall.transition(key);
+
+                    // If done or error occurred, remove from timeout watch set
+                    if (methodCall.isFinished() || methodCall.getClient().hasError()) {
+                        timeoutWatchSet.remove(methodCall);
+                    }
+                }
+            } catch (ClosedSelectorException e) {
+                LOGGER.error("Caught ClosedSelectorException in TAsyncClientManager!", e);
+            }
+        }
+
+        // Timeout any existing method calls
+        // 检查是否超时
+        private void timeoutMethods() {
+            Iterator<TAsyncMethodCall> iterator = timeoutWatchSet.iterator();
+            long currentTime = System.currentTimeMillis();
+            while (iterator.hasNext()) {
+                TAsyncMethodCall methodCall = iterator.next();
+                if (currentTime >= methodCall.getTimeoutTimestamp()) {
+                    iterator.remove();
+                    methodCall.onError(new TimeoutException("Operation " + methodCall.getClass() + " timed out after " + (currentTime - methodCall.getStartTime()) + " ms."));
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Start any new calls
+        // 开始待执行的方法
+        private void startPendingMethods() {
+            TAsyncMethodCall methodCall;
+            while ((methodCall = pendingCalls.poll()) != null) {
+                // Catch registration errors. method will catch transition errors and cleanup.
+                try {
+                    // 注册 Selector，开始第一个状态，既可以用于连接，也可以用于写入
+                    methodCall.start(selector);
+
+                    // If timeout specified and first transition went smoothly, add to timeout watch set
+                    // 如果有超时则添加超时
+                    TAsyncClient client = methodCall.getClient();
+                    if (client.hasTimeout() && !client.hasError()) {
+                        timeoutWatchSet.add(methodCall);
+                    }
+                } catch (Exception exception) {
+                    LOGGER.warn("Caught exception in TAsyncClientManager!", exception);
+                    methodCall.onError(exception);
+                }
+            }
+        }
     }
-  }
 }

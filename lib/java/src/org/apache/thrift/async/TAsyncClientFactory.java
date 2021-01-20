@@ -20,6 +20,11 @@ package org.apache.thrift.async;
 
 import org.apache.thrift.transport.TNonblockingTransport;
 
+/**
+ * 异步 Client 工厂
+ *
+ * @param <T>
+ */
 public interface TAsyncClientFactory<T extends TAsyncClient> {
-  public T getAsyncClient(TNonblockingTransport transport);
+    public T getAsyncClient(TNonblockingTransport transport);
 }

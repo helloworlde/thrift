@@ -23,7 +23,15 @@ import org.apache.thrift.protocol.TMessage;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.AbstractNonblockingServer;
 
+/**
+ * 异步处理函数
+ *
+ * @param <I>
+ * @param <T>
+ * @param <R>
+ */
 public abstract class AsyncProcessFunction<I, T extends TBase, R> {
+    // 方法名
     final String methodName;
 
     public AsyncProcessFunction(String methodName) {
@@ -32,6 +40,14 @@ public abstract class AsyncProcessFunction<I, T extends TBase, R> {
 
     protected abstract boolean isOneway();
 
+    /**
+     * 开始调用
+     *
+     * @param iface
+     * @param args
+     * @param resultHandler
+     * @throws TException
+     */
     public abstract void start(I iface, T args, AsyncMethodCallback<R> resultHandler) throws TException;
 
     public abstract T getEmptyArgsInstance();
@@ -42,6 +58,15 @@ public abstract class AsyncProcessFunction<I, T extends TBase, R> {
         return methodName;
     }
 
+    /**
+     * 发送响应
+     *
+     * @param fb
+     * @param result
+     * @param type
+     * @param seqid
+     * @throws TException
+     */
     public void sendResponse(final AbstractNonblockingServer.AsyncFrameBuffer fb, final TSerializable result, final byte type, final int seqid) throws TException {
         TProtocol oprot = fb.getOutputProtocol();
 
