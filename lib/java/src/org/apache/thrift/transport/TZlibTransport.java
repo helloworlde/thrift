@@ -28,6 +28,7 @@ import java.util.zip.InflaterInputStream;
 
 /**
  * TZlibTransport deflates on write and inflates on read.
+ * 压缩的 Transport
  */
 public class TZlibTransport extends TIOStreamTransport {
 
@@ -45,7 +46,8 @@ public class TZlibTransport extends TIOStreamTransport {
 
     /**
      * Constructs a new TZlibTransport instance.
-     * @param  transport the underlying transport to read from and write to
+     *
+     * @param transport the underlying transport to read from and write to
      */
     public TZlibTransport(TTransport transport) {
         this(transport, Deflater.BEST_COMPRESSION);
@@ -53,8 +55,9 @@ public class TZlibTransport extends TIOStreamTransport {
 
     /**
      * Constructs a new TZlibTransport instance.
-     * @param  transport the underlying transport to read from and write to
-     * @param  compressionLevel 0 for no compression, 9 for maximum compression
+     *
+     * @param transport        the underlying transport to read from and write to
+     * @param compressionLevel 0 for no compression, 9 for maximum compression
      */
     public TZlibTransport(TTransport transport, int compressionLevel) {
         transport_ = transport;

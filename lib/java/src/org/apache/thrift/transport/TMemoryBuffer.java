@@ -20,85 +20,87 @@
 package org.apache.thrift.transport;
 
 import org.apache.thrift.TByteArrayOutputStream;
+
 import java.nio.charset.Charset;
 
 /**
  * Memory buffer-based implementation of the TTransport interface.
+ * 基于内存缓冲实现的 Transport
  */
 public class TMemoryBuffer extends TTransport {
-  /**
-   * Create a TMemoryBuffer with an initial buffer size of <i>size</i>. The
-   * internal buffer will grow as necessary to accommodate the size of the data
-   * being written to it.
-   *
-   * @param size the initial size of the buffer
-   */
-  public TMemoryBuffer(int size) {
-    arr_ = new TByteArrayOutputStream(size);
-  }
+    // The contents of the buffer
+    private TByteArrayOutputStream arr_;
+    // Position to read next byte from
+    private int pos_;
 
-  @Override
-  public boolean isOpen() {
-    return true;
-  }
-
-  @Override
-  public void open() {
-    /* Do nothing */
-  }
-
-  @Override
-  public void close() {
-    /* Do nothing */
-  }
-
-  @Override
-  public int read(byte[] buf, int off, int len) {
-    byte[] src = arr_.get();
-    int amtToRead = (len > arr_.len() - pos_ ? arr_.len() - pos_ : len);
-    if (amtToRead > 0) {
-      System.arraycopy(src, pos_, buf, off, amtToRead);
-      pos_ += amtToRead;
+    /**
+     * Create a TMemoryBuffer with an initial buffer size of <i>size</i>. The
+     * internal buffer will grow as necessary to accommodate the size of the data
+     * being written to it.
+     *
+     * @param size the initial size of the buffer
+     */
+    public TMemoryBuffer(int size) {
+        arr_ = new TByteArrayOutputStream(size);
     }
-    return amtToRead;
-  }
 
-  @Override
-  public void write(byte[] buf, int off, int len) {
-    arr_.write(buf, off, len);
-  }
-
-  /**
-   * Output the contents of the memory buffer as a String, using the supplied
-   * encoding
-   * @param charset the encoding to use
-   * @return the contents of the memory buffer as a String
-   */
-  public String toString(Charset charset) {
-    return arr_.toString(charset);
-  }
-
-  public String inspect() {
-    StringBuilder buf = new StringBuilder();
-    byte[] bytes = arr_.toByteArray();
-    for (int i = 0; i < bytes.length; i++) {
-      buf.append(pos_ == i ? "==>" : "" ).append(Integer.toHexString(bytes[i] & 0xff)).append(" ");
+    @Override
+    public boolean isOpen() {
+        return true;
     }
-    return buf.toString();
-  }
 
-  // The contents of the buffer
-  private TByteArrayOutputStream arr_;
+    @Override
+    public void open() {
+        /* Do nothing */
+    }
 
-  // Position to read next byte from
-  private int pos_;
+    @Override
+    public void close() {
+        /* Do nothing */
+    }
 
-  public int length() {
-    return arr_.size();
-  }
+    @Override
+    public int read(byte[] buf, int off, int len) {
+        byte[] src = arr_.get();
+        int amtToRead = (len > arr_.len() - pos_ ? arr_.len() - pos_ : len);
+        if (amtToRead > 0) {
+            System.arraycopy(src, pos_, buf, off, amtToRead);
+            pos_ += amtToRead;
+        }
+        return amtToRead;
+    }
 
-  public byte[] getArray() {
-    return arr_.get();
-  }
+    @Override
+    public void write(byte[] buf, int off, int len) {
+        arr_.write(buf, off, len);
+    }
+
+    /**
+     * Output the contents of the memory buffer as a String, using the supplied
+     * encoding
+     *
+     * @param charset the encoding to use
+     * @return the contents of the memory buffer as a String
+     */
+    public String toString(Charset charset) {
+        return arr_.toString(charset);
+    }
+
+    public String inspect() {
+        StringBuilder buf = new StringBuilder();
+        byte[] bytes = arr_.toByteArray();
+        for (int i = 0; i < bytes.length; i++) {
+            buf.append(pos_ == i ? "==>" : "").append(Integer.toHexString(bytes[i] & 0xff)).append(" ");
+        }
+        return buf.toString();
+    }
+
+    public int length() {
+        return arr_.size();
+    }
+
+    public byte[] getArray() {
+        return arr_.get();
+    }
 }
 
