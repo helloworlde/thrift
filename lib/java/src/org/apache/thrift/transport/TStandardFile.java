@@ -19,42 +19,42 @@
 
 package org.apache.thrift.transport;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
 
 public class TStandardFile implements TSeekableFile {
 
-  protected String path_ = null;
-  protected RandomAccessFile inputFile_ = null;
+    protected String path_ = null;
+    protected RandomAccessFile inputFile_ = null;
 
-  public TStandardFile(String path) throws IOException {
-    path_ = path;
-    inputFile_ = new RandomAccessFile(path_, "r");
-  }
-
-  public InputStream getInputStream() throws IOException {
-    return new FileInputStream(inputFile_.getFD());
-  }
-
-  public OutputStream getOutputStream() throws IOException {
-    return new FileOutputStream(path_);
-  }
-
-  public void close() throws IOException {
-    if(inputFile_ != null) {
-      inputFile_.close();
+    public TStandardFile(String path) throws IOException {
+        path_ = path;
+        inputFile_ = new RandomAccessFile(path_, "r");
     }
-  }
 
-  public long length() throws IOException {
-    return inputFile_.length();
-  }
+    public InputStream getInputStream() throws IOException {
+        return new FileInputStream(inputFile_.getFD());
+    }
 
-  public void seek(long pos) throws IOException {
-    inputFile_.seek(pos);
-  }
+    public OutputStream getOutputStream() throws IOException {
+        return new FileOutputStream(path_);
+    }
+
+    public void close() throws IOException {
+        if (inputFile_ != null) {
+            inputFile_.close();
+        }
+    }
+
+    public long length() throws IOException {
+        return inputFile_.length();
+    }
+
+    public void seek(long pos) throws IOException {
+        inputFile_.seek(pos);
+    }
 }
